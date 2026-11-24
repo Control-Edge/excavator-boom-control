@@ -42,9 +42,9 @@ void BoomControl_cyclic(BoomControl_ts *ctx, uint16_t cycle_ms)
     const BoomControlConfig_ts *c = &ctx->config;
     uint8_t badSignal = ctx->joystick_mV < c->joystickMin_mV - c->signalMargin_mV ||
                         ctx->joystick_mV > c->joystickMax_mV + c->signalMargin_mV;
-    int8_t requested = joystickToCommand(c, ctx->joystick_mV);
+    int8_t requested = badSignal ? 0 : joystickToCommand(c, ctx->joystick_mV);
 
-    /* A bad signal latches a fault once it has lasted faultDelay_ms, so a short glitch doesn't stop the boom */
+    /* A bad signal holds the boom at once, and latches a fault once it has lasted faultDelay_ms */
     if (!badSignal)
         ctx->badSignal_ms = 0;
     else if (ctx->badSignal_ms < c->faultDelay_ms)
@@ -52,8 +52,8 @@ void BoomControl_cyclic(BoomControl_ts *ctx, uint16_t cycle_ms)
 
     if (ctx->badSignal_ms >= c->faultDelay_ms)
         ctx->fault = 1;
-    else if (!badSignal)
-        ctx->fault = 0;
+    else if (ctx->fault && requested == 0)
+        ctx->fault = 0; /* cleared only with the joystick back in neutral */
 
     ctx->command_pct = ctx->fault ? 0 : requested;
 

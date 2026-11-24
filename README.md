@@ -25,19 +25,31 @@ An electrical joystick on a 0–5 V analog input gives 0.5 V at full down, 2.5 V
 
 The simulation plays the operator: neutral, a sweep from full down to full up, then the signal wire breaks for 1 s while the joystick is pushed up, comes back with the joystick still pushed up, and the operator returns to neutral and moves up again.
 
-## This version fails
+## Results
 
-This is the starting point of the tutorial, and the simulation **fails** on purpose:
+Every rule passes, and the program exits with 0:
 
 ```
 CppModel.Verify.one coil at a time: PASS held at 1701 checked step(s)
-CppModel.Verify.no motion on a bad signal: FAIL violated 1 time(s), 0.09 s in total, first t=12 s–12.09 s
+CppModel.Verify.no motion on a bad signal: PASS held at 1701 checked step(s)
 CppModel.Verify.fault within 200 ms: PASS 1 trigger(s) answered, slowest in 0.09 s (deadline 0.2 s)
-CppModel.Verify.restart only from neutral: FAIL violated 2 time(s), 1.09 s in total, first t=12 s–12.09 s
-CppModel.Verify: 2 of 4 rules passed
+CppModel.Verify.restart only from neutral: PASS held at 1701 checked step(s)
+CppModel.Verify: 4 of 4 rules passed
 ```
 
-When the wire breaks, the down coil gets 700 mA for 90 ms before the fault latches, and when the wire is back the boom moves without the joystick passing neutral. Can you find the cause in `BoomControl.c` before reading the [tutorial](https://www.cppmodel.com/docs/ExcavatorBoomControl#the-fix)?
+## The bug the simulation found
+
+The first version of `BoomControl.c` (tag [`0.0.1`](../../tree/0.0.1)) failed two rules:
+
+```
+CppModel.Verify.no motion on a bad signal: FAIL violated 1 time(s), 0.09 s in total, first t=12 s–12.09 s
+CppModel.Verify.restart only from neutral: FAIL violated 2 time(s), 1.09 s in total, first t=12 s–12.09 s
+```
+
+- **A broken wire drove the boom full down.** The cut wire reads 0 V, which the scaling clamped to 0.5 V: full down. The fault only latched after its 100 ms delay, so for 90 ms the down coil got 700 mA.
+- **The boom restarted on its own.** The fault cleared as soon as the signal was valid again, so the boom moved with the joystick still pushed up.
+
+The fix holds the boom as soon as the signal is bad, without waiting for the fault, and clears the fault only with the joystick back in neutral. To see the failing run, check out `0.0.1` and run it again. The [tutorial](https://www.cppmodel.com/docs/ExcavatorBoomControl#the-fix) shows both runs on a graph.
 
 ## Files
 
